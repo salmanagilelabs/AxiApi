@@ -1,0 +1,202 @@
+﻿using ARMCommon.Helpers;
+using ARMCommon.Interface;
+using ARMCommon.Model;
+using AxExtend.Interface;
+using AxiApi.DTOs;
+using AxiApi.Enums;
+using AxiApi.Exceptions;
+using AxiApi.Interfaces;
+using Newtonsoft.Json;
+using Npgsql;
+using StackExchange.Redis;
+
+namespace AxiApi.Services
+{
+    public class UserFavouritesService : IUserFavouriteService
+    {
+        private readonly ILogger<UserFavouritesService> _logger; 
+        private readonly IUserFavouritesRepository _userFavouritesRepository;
+        private readonly IAxExtend _axExtend;
+
+        public UserFavouritesService(ILogger<UserFavouritesService> logger, IUserFavouritesRepository userFavouritesRepository, IAxExtend axExtend)
+        {
+            _logger = logger;
+            _userFavouritesRepository = userFavouritesRepository;
+            _axExtend = axExtend;
+
+
+        }
+
+        public async Task<List<UserFavouritesDTO>> GetUserFavouritesByUsernameAsync(string username, string appname)
+        {
+            IRedisCacheHelper redisCache = null;
+            string axiUserFavouritesCacheKey = $"axi_{appname}_userfavourites_{username}"; 
+
+            var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
+
+            List<UserFavouritesDTO> userFavouritesDTOs = new(); 
+
+
+           _logger.LogInformation($"Fetching UserFavourites for Username: {username}"); 
+            if (string.IsNullOrEmpty(username))
+            {
+                _logger.LogError("Username is Invalid"); 
+                throw new ArgumentException("Username is Invalid"); 
+            }
+
+            if (redisConnected)
+            {
+                _logger.LogInformation("Redis Connected. Checking UserFavourites in Redis Cache....");
+                redisCache = await _axExtend.GetRedis(); 
+                var cached = await redisCache.StringGetAsync(axiUserFavouritesCacheKey);
+                
+                if (!string.IsNullOrEmpty(cached))
+                {
+                    _logger.LogInformation("Redis Cache found!. Retriving from Cache");
+
+                    userFavouritesDTOs = JsonConvert.DeserializeObject<List<UserFavouritesDTO>>(cached);
+                    if (userFavouritesDTOs?.Count == 0)
+                    {
+                        _logger.LogInformation($"UserFavourites for Username: {username} was not found!");
+
+                        
+
+                    }
+                    _logger.LogDebug($"Retrived UserFavourites for Username: {username} | UserFavourites: {JsonConvert.SerializeObject(userFavouritesDTOs)}");
+
+                   
+
+
+                } else
+                {
+                    _logger.LogInformation("Redis Cache not found Fallback to DB"); 
+                    userFavouritesDTOs = await _userFavouritesRepository.GetUserFavouritesByUsername(username, appname);
+                    try
+                    {
+                        await redisCache.StringSetAsync(axiUserFavouritesCacheKey, JsonConvert.SerializeObject(userFavouritesDTOs)); 
+                    } catch(RedisException ex)
+                    {
+                        throw new RedisCacheConnectionException(ex.Message); 
+                    }
+                    if (userFavouritesDTOs?.Count == 0)
+                    {
+                        _logger.LogInformation($"UserFavourites for Username: {username} was not found!");
+
+
+
+                    }
+                    _logger.LogDebug($"Retrived UserFavourites for Username: {username} | UserFavourites: {JsonConvert.SerializeObject(userFavouritesDTOs)}");
+
+
+
+                }
+
+            } else
+            {
+                _logger.LogError("Redis did not connected");
+                throw new RedisCacheConnectionException(); 
+            }
+
+            return userFavouritesDTOs ?? new List<UserFavouritesDTO>();
+
+
+
+        }
+
+        public async Task<NonQueryResult> ToggleUserFavouritesAsync(UserFavouritesRequestDTO requestDTO,  string appname)
+        {
+            if (requestDTO == null)
+            {
+                _logger.LogError("Invalid request!");
+
+                throw new ArgumentException(nameof(requestDTO)); 
+            }
+
+            if (!Enum.TryParse<FavouritesAction>(requestDTO.Action, true, out var action)) {
+                _logger.LogError("Invalid action!");
+
+                throw new ArgumentException("Action is Invalid");
+
+            }
+
+          
+            if (string.IsNullOrEmpty(appname))
+            {
+                _logger.LogError("Invalid appname!");
+
+                throw new ArgumentException(nameof(appname));
+            }
+
+            IRedisCacheHelper redisCache = null;
+
+            var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
+            string axiUserFavouritesCacheKey = $"axi_{appname}_userfavourites_{requestDTO.Username}";
+
+
+
+
+
+            NonQueryResult nonQueryResult = new NonQueryResult();
+
+            UserFavouritesDTO userFavouritesDTO = new UserFavouritesDTO
+            {
+                Username = requestDTO.Username,
+                CommandText = requestDTO.CommandText,
+                FavOrder = requestDTO.FavOrder,
+                TargetURL = requestDTO.TargetURL
+
+            }; 
+
+            if (redisConnected)
+            {
+                redisCache = await _axExtend.GetRedis(); 
+                switch (action)
+                {
+                    case FavouritesAction.Add:
+                        _logger.LogInformation($"Adding UserFavourites for Username: {requestDTO.Username}");
+
+                        nonQueryResult = await _userFavouritesRepository.CreateUserFavourites(userFavouritesDTO, appname);
+                        if (!string.IsNullOrEmpty(nonQueryResult.error))
+                        {
+                            throw new DatabaseException("Insert");
+
+                        }
+
+                        await redisCache.KeyDeleteAsync(axiUserFavouritesCacheKey);
+
+                        _logger.LogInformation($"UserFavourites added successfully for Username: {requestDTO.Username}");
+                        break;
+                    case FavouritesAction.Remove:
+                        _logger.LogInformation($"Deleting UserFavourites for Username: {requestDTO.Username}");
+
+                        nonQueryResult = await _userFavouritesRepository.DeleteUserFavouritesByCmd(userFavouritesDTO, appname);
+                        if (!string.IsNullOrEmpty(nonQueryResult.error))
+                        {
+                            throw new DatabaseException("Delete");
+
+                        }
+                        await redisCache.KeyDeleteAsync(axiUserFavouritesCacheKey); 
+                        _logger.LogInformation($"UserFavourites Deleted successfully for Username: {requestDTO.Username} | Deleted command: {requestDTO.CommandText}");
+
+                        break;
+
+                    default:
+                        break;
+                }
+
+            }
+
+           
+
+
+
+            return nonQueryResult; 
+
+        }
+
+        //private UserFavouritesDTO CheckAccessPermissionForUserFavourites(UserFavouritesDTO userFavouritesDTO, AccessPermissionsDTO accessPermissionsDTO)
+        //{
+
+        //}
+    }
+}
