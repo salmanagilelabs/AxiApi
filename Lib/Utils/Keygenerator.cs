@@ -7,7 +7,7 @@
         private Keygenerator() { }
 
         
-        public static string GenerateCacheKey(string appname, string username, string type)
+        public static string GenerateCacheKey(string appname,  string type, string username = "")
         {
             string key = prefixKey + "_" + appname + "_" + type + "_" + username;
 

@@ -68,10 +68,10 @@ namespace AxiApi.Controllers
         }
 
         [HttpPost("user-favourites")]
-        public async Task<ActionResult<NonQueryResult>> ToggleUserFavourites([FromBody] UserFavouritesRequestDTO requestDTO, [FromQuery] string appname)
+        public async Task<ActionResult<object>> ToggleUserFavourites([FromBody] UserFavouritesRequestDTO requestDTO, [FromQuery] string appname)
 
         {
-            NonQueryResult response = await _userFavouriteService.ToggleUserFavouritesAsync(requestDTO, appname);
+            object response = await _userFavouriteService.ToggleUserFavouritesAsync(requestDTO, appname);
             return Ok(response); 
 
         }

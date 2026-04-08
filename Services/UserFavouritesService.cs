@@ -33,7 +33,7 @@ namespace AxiApi.Services
             IRedisCacheHelper redisCache = null;
 
             //string axiUserFavouritesCacheKey = $"axi_{appname}_userfavourites_{username}"; 
-            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, username, "userfavourites");
+            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, "userfavourites", username);
 
             var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
 
@@ -76,7 +76,7 @@ namespace AxiApi.Services
                     userFavouritesDTOs = await _userFavouritesRepository.GetUserFavouritesByUsername(username, appname);
                     try
                     {
-                        await redisCache.StringSetAsync(axiUserFavouritesCacheKey, JsonConvert.SerializeObject(userFavouritesDTOs)); 
+                        await redisCache.StringSetAsync(axiUserFavouritesCacheKey, JsonConvert.SerializeObject(userFavouritesDTOs), 7200); 
                     } catch(RedisException ex)
                     {
                         throw new RedisCacheConnectionException(ex.Message); 
@@ -106,7 +106,7 @@ namespace AxiApi.Services
 
         }
 
-        public async Task<NonQueryResult> ToggleUserFavouritesAsync(UserFavouritesRequestDTO requestDTO,  string appname)
+        public async Task<object> ToggleUserFavouritesAsync(UserFavouritesRequestDTO requestDTO,  string appname)
         {
             if (requestDTO == null)
             {
@@ -134,13 +134,14 @@ namespace AxiApi.Services
 
             var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
             //string axiUserFavouritesCacheKey = $"axi_{appname}_userfavourites_{requestDTO.Username}";
-            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, requestDTO.Username, "userfavourites");
+            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, "userfavourites", requestDTO.Username);
 
 
 
 
 
-            NonQueryResult nonQueryResult = new NonQueryResult();
+            //NonQueryResult nonQueryResult = new NonQueryResult();
+            object result = new(); 
 
             UserFavouritesDTO userFavouritesDTO = new UserFavouritesDTO
             {
@@ -152,6 +153,8 @@ namespace AxiApi.Services
 
             }; 
 
+
+
             if (redisConnected)
             {
                 var redisCache = await _axExtend.GetRedis(); 
@@ -160,12 +163,12 @@ namespace AxiApi.Services
                     case FavouritesAction.Add:
                         _logger.LogInformation($"Adding UserFavourites for Username: {requestDTO.Username}");
 
-                        nonQueryResult = await _userFavouritesRepository.CreateUserFavourites(userFavouritesDTO, appname);
-                        if (!string.IsNullOrEmpty(nonQueryResult.error))
-                        {
-                            throw new DatabaseException(nonQueryResult.error,"Insert");
+                       result  = await _userFavouritesRepository.CreateUserFavourites(userFavouritesDTO, appname);
+                        //if (!string.IsNullOrEmpty(nonQueryResult.error))
+                        //{
+                        //    throw new DatabaseException(nonQueryResult.error,"Insert");
 
-                        }
+                        //}
 
                         await redisCache.KeyDeleteAsync(axiUserFavouritesCacheKey);
 
@@ -174,12 +177,12 @@ namespace AxiApi.Services
                     case FavouritesAction.Remove:
                         _logger.LogInformation($"Deleting UserFavourites for Username: {requestDTO.Username}");
 
-                        nonQueryResult = await _userFavouritesRepository.DeleteUserFavouritesByCmd(userFavouritesDTO, appname);
-                        if (!string.IsNullOrEmpty(nonQueryResult.error))
-                        {
-                            throw new DatabaseException(nonQueryResult.error,"Delete");
+                        result = await _userFavouritesRepository.DeleteUserFavouritesByCmd(userFavouritesDTO, appname);
+                        //if (!string.IsNullOrEmpty(result.error))
+                        //{
+                        //    throw new DatabaseException(result.error,"Delete");
 
-                        }
+                        //}
                         await redisCache.KeyDeleteAsync(axiUserFavouritesCacheKey); 
                         _logger.LogInformation($"UserFavourites Deleted successfully for Username: {requestDTO.Username} | Deleted command: {requestDTO.CommandText}");
 
@@ -195,7 +198,7 @@ namespace AxiApi.Services
 
 
 
-            return nonQueryResult; 
+            return result; 
 
         }
 
@@ -228,7 +231,7 @@ namespace AxiApi.Services
                 // handle invalid GUID
             }
 
-            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, username, "userfavourites");
+            string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, "userfavourites", username);
 
             var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname); 
 

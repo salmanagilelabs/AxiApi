@@ -4,6 +4,7 @@ using AxExtend.Interface;
 using AxiApi.DTOs;
 using AxiApi.Interfaces;
 using AxiApi.Lib;
+using AxiApi.Lib.Utils;
 using AxiApi.Repositories;
 
 using Newtonsoft.Json;
@@ -13,7 +14,7 @@ namespace AxiApi.Services;
 
 public class GrammarBootstrapService: IGrammarBootstrapService
 {
-    private const string GrammarCacheKey = AxiApi.Lib.Constants.GrammarCache;
+    
 
      private readonly IGrammarRepository _grammarRepository;
     private readonly IAxExtend _axExtend;
@@ -49,11 +50,12 @@ public class GrammarBootstrapService: IGrammarBootstrapService
         {
             GrammarDTO grammar;
             GrammarCacheDTO? cachedGrammar = null;
-            IRedisCacheHelper redisCache = null; 
-            
-           
+            IRedisCacheHelper redisCache = null;
+            string GrammarCacheKey = Keygenerator.GenerateCacheKey(appname, "", "commands"); 
 
-            var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
+
+
+    var redisConnected = await _axExtend.OpenRedisConnectionAsync(appname);
             RedisKey[] redisKeys = { 
                 GrammarCacheKey
             }; 
@@ -117,7 +119,7 @@ public class GrammarBootstrapService: IGrammarBootstrapService
                 try
                 {
 
-                    await redisCache?.StringSetAsync(GrammarCacheKey, JsonConvert.SerializeObject(cacheDTO), 43200);
+                    await redisCache?.StringSetAsync(GrammarCacheKey, JsonConvert.SerializeObject(cacheDTO), 7200);
                 }
                 catch (RedisException ex)
                 {
