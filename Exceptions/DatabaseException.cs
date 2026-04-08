@@ -11,5 +11,7 @@
         {
 
         }
+
+        public DatabaseException(string message, string action): base(action + " Database Operation failed. Error: " + message) { }
     }
 }

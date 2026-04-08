@@ -75,6 +75,13 @@ namespace AxiApi.Controllers
             return Ok(response); 
 
         }
+
+        [HttpPatch("user-favourites/{favouritesId}")]
+        public async Task<ActionResult<NonQueryResult>> UpdateCommandText([FromBody] UpdateUserFavouritesDTO requestDTO, [FromQuery] string appname, [FromQuery] string username, [FromRoute] string favouritesId)
+        {
+            NonQueryResult response = await _userFavouriteService.UpdateCommandText(favouritesId, requestDTO, appname, username);
+            return Ok(response); 
+        }
        
         
 

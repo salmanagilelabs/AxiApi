@@ -22,11 +22,11 @@ namespace AxiApi.Repositories
 
         public async Task<NonQueryResult> CreateUserFavourites(UserFavouritesDTO userFavouritesDTO, string appname)
         {
-            string sqlQuery = "INSERT INTO Axi_UserFavourites\r\n(username, commandtext, favorder, targeturl)\r\nVALUES\r\n(:username, :commandtext, :favorder, :targeturl);";
+            string sqlQuery = "INSERT INTO Axi_UserFavourites\r\n(username, commandtext,originalcommandtext, favorder, targeturl)\r\nVALUES\r\n(:username, :commandtext,:originalcommandtext, :favorder, :targeturl);";
 
-            string[] paramNames = { ":username", ":commandtext", ":favorder", ":targeturl" };
-            DbType[] paramTypes = { DbType.String, DbType.String, DbType.Int64, DbType.String };
-            object[] paramValues = { userFavouritesDTO.Username, userFavouritesDTO.CommandText, userFavouritesDTO.FavOrder, userFavouritesDTO.TargetURL };
+            string[] paramNames = { ":username", ":commandtext", ":originalcommandtext", ":favorder", ":targeturl" };
+            DbType[] paramTypes = { DbType.String, DbType.String, DbType.String, DbType.Int64, DbType.String };
+            object[] paramValues = { userFavouritesDTO.Username, userFavouritesDTO.CommandText, userFavouritesDTO.OriginalCommandText, userFavouritesDTO.FavOrder, userFavouritesDTO.TargetURL };
 
             NonQueryResult sqlResult = new();
             
@@ -107,6 +107,7 @@ namespace AxiApi.Repositories
                         FavouritesId = row["id"] is DBNull ? Guid.Empty : (Guid)row["id"],
                         Username = row["username"]?.ToString(),
                         CommandText = row["commandtext"]?.ToString(),
+                        OriginalCommandText = row["originalcommandtext"]?.ToString(),
                         FavOrder = row["favorder"] is DBNull ? 0 : Convert.ToInt32(row["favorder"]),
                         TargetURL  = row["targeturl"]?.ToString(),
                         CreatedOn = row["createdon"] is DBNull ? DateTime.MinValue : (DateTime)row["createdon"],
@@ -118,6 +119,35 @@ namespace AxiApi.Repositories
             }
 
             return favouritesDTOs; 
+
+
+
+        }
+
+        public async Task<NonQueryResult> UpdateUserFavourties(Guid favouritesId, string appname, string commandText)
+        {
+
+            string sqlQuery = "UPDATE userfavourites\r\nSET commandtext = :commandtext\r\nWHERE favouritesid = :favourtiesid;";
+
+            string[] paramNames = { ":favouritesid", ":commandtext" };
+            DbType[] paramTypes = { DbType.Guid, DbType.String };
+            object[] paramValues = { favouritesId,commandText };
+
+            NonQueryResult sqlResult = new();
+
+
+            var isDbConnected = await _axExtend.OpenDBConnectionAsync(appname);
+
+            if (isDbConnected)
+            {
+                var db = await _axExtend.GetDB();
+
+                sqlResult = await db.ExecuteNonQueryAsync(sqlQuery, paramNames, paramTypes, paramValues);
+
+
+            }
+
+            return sqlResult;
 
 
 
