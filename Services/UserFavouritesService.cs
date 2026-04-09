@@ -30,7 +30,7 @@ namespace AxiApi.Services
 
         public async Task<List<UserFavouritesDTO>> GetUserFavouritesByUsernameAsync(string username, string appname)
         {
-            IRedisCacheHelper redisCache = null;
+            
 
             //string axiUserFavouritesCacheKey = $"axi_{appname}_userfavourites_{username}"; 
             string axiUserFavouritesCacheKey = Keygenerator.GenerateCacheKey(appname, "userfavourites", username);
@@ -50,7 +50,7 @@ namespace AxiApi.Services
             if (redisConnected)
             {
                 _logger.LogInformation("Redis Connected. Checking UserFavourites in Redis Cache....");
-                redisCache = await _axExtend.GetRedis(); 
+                var redisCache = await _axExtend.GetRedis(); 
                 var cached = await redisCache.StringGetAsync(axiUserFavouritesCacheKey);
                 
                 if (!string.IsNullOrEmpty(cached))
